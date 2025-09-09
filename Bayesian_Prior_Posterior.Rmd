@@ -1,0 +1,316 @@
+---
+title: "Shawn's study notes on Bayesian Statistics"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+---
+
+<span style="font-size:20px; font-weight: bold; font-style: italic;">The Bayesian Statistics course is from Coursera by Duke University.</span>
+
+---
+
+## 1. Basics of Bayesian Probability:
+
+> <span style="font-weight: bold; font-size: 20px;">The example of RU-486 (contraceptive):</span><br>
+<br>
+<span style="font-style: italic; font-size: 20px;">
+  40 women came to health clinic asking for emergency contraception,<br>
+  randomly assign 20 to RU-486 & 20 to standard therapy,<br>
+  4 out of 20 in RU-486(treatment) became pregnant,<br>
+  16 out of 20 in standard therapy(control) were pregnant.<br>
+  Question:<br>
+  How strongly do these data indicate that the treatment is more effective than the control?
+</span>
+
+```{r}
+df <- data.frame(
+  Group = c("Treated","Control"),
+  Pregnant = c(4,16),
+  Not_Pregnant = c(16,4)
+)
+
+library(kableExtra)
+
+kable(df) %>%
+  kable_styling(font_size = 20, full_width = FALSE)
+```
+
+### _Simplification -- one proportion: 20 total pregnancies, how likely is it that 4 pregnancies occur in the treatment group? (vs 10 from treatment)_
+
+## <u><b>1.1 Frequentist Method:</b></u>
+
+### H<sub>0</sub>: p=0.5, H<sub>A</sub>: p<0.5
+
+### Then with binomial distribution probability,
+
+$$
+P(X = k) = \binom{n}{k} \, p^k \, (1-p)^{n-k}
+$$
+
+### the p-value=P(k<=4) is the sum of the probability of k=0,1,2,3,4 while n=20:
+
+```{r}
+sum(dbinom(0:4, size=20, p=0.5))
+```
+### which means the chances of observing 4 or less pregnancies in the treatment group, given that pregnancy was equally likely in the two groups is approximately 0.0059, which will reject the H<sub>0</sub>.
+
+---
+
+## <u><b>1.2 Bayesian Method:</b></u> 
+_(same assumption that 50%(p) out of 20 pregnancies came from treatment group means treatment = control, versus <50% from treatment)_
+
+### 1st, assume p, the chances that the preganancies came from treatment group,  could be 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, or 90%.
+<br></br>
+
+### 2nd, specify the prior, which is the relevant research up to current time, but not incorporate info from current experiment.
+<br></br>
+
+| Model (p)              | 0.1  | 0.2  | 0.3  | 0.4  | 0.5  | 0.6  | 0.7  | 0.8  | 0.9  | Total |
+| :--------------------- | :--: | :--: | :--: | :--: | :--: | :--: | :--: | :--: | :--: | :---: |
+| <b>Prior, P(model)</b> | 0.06 | 0.06 | 0.06 | 0.06 | 0.52 | 0.06 | 0.06 | 0.06 | 0.06 | 0.06  |
+
+### The benefit of treatment is set to symmetic, so it's equally likely to be better or worse than the standard treatment.
+
+### 3rd, calculate the Likelihood, P(data|model), for each model. E.g.: P(data|model)=P(k=4|n=20,p)
+
+```{r}
+
+p <- round(seq(from = 0.1, to = 0.9, by = 0.1), digits=1)
+prior <- round(c(rep(0.06,4),0.52, rep(0.06,4)), digits=2)
+likelihood <- round(dbinom(4, size=20, prob = p), digits=4)
+
+library(dplyr)
+
+df1 <- as.data.frame(rbind(p,prior,likelihood))
+names(df1) <- NULL
+
+rownames(df1) <- c("Model (p)","Prior, P(model)","Likelihood, P(data|model)")
+
+library(kableExtra)
+
+kable(df1, format="html", escape=FALSE) %>%
+  kable_styling(font_size = 20, full_width = TRUE)
+```
+
+### 4th, Calculate Posterior: i.e. P(model|data)
+
+$$
+P(model | data) = \frac{P(model \& data)}{P(data)} = \frac{P(data|model)*P(model)}{P(data)}
+$$
+
+```{r}
+numerator   <- round(prior * likelihood,digits=4)
+denominator <- round(sum(numerator),digits=4)
+denominator
+posterior   <- round(numerator / denominator,digits=4)
+
+df1b <- as.data.frame(rbind(p,prior,likelihood,numerator,posterior))
+names(df1b) <- NULL
+
+rownames(df1b) <- c("Model (p)","Prior, P(model)","Likelihood, P(data|model)","Numerator, P(data|model)*P(model)","Posterior, P(model|data)")
+
+library(kableExtra)
+
+kable(df1b, format="html", escape=FALSE) %>%
+  kable_styling(font_size = 20, full_width = TRUE) %>%
+  column_spec(column = 3, background = "yellow", bold=TRUE)
+
+sum(posterior)
+```
+
+### So the highlighted column is the most likely model, based on the observed data, even we give lower prior p (0.06), it's posterior p is the highest.
+### And in Bayesian paradigm, it allows we make direct probability statements about the models, like sum the posteriors of the models where p<0.5, which is about 0.9216 chance that the treatment is more effective than controls.
+
+---
+
+---
+
+## <u><b>2. Effect of Sample Size on the Posterior</b></u>
+
+```{r}
+barplot(prior, main="Prior")
+barplot(likelihood, main="Likelihood")
+barplot(posterior, main="Posterior")
+```
+
+
+### Then what if n=40, k=8?
+
+```{r}
+p2 <- round(seq(from = 0.1, to = 0.9, by = 0.1), digits=1)
+prior2 <- round(c(rep(0.06,4),0.52, rep(0.06,4)), digits=2)
+
+likelihood2 <- round(dbinom(8, size=40, prob = p), digits=4)
+
+numerator2   <- round(prior2 * likelihood2,digits=4)
+denominator2 <- round(sum(numerator2),digits=4)
+denominator2
+posterior2   <- round(numerator2 / denominator2,digits=4)
+
+library(dplyr)
+df2 <- as.data.frame(rbind(p2,prior2,likelihood2,numerator2,posterior2))
+names(df2) <- NULL
+
+rownames(df2) <- c("Model (p)","Prior, P(model)","Likelihood, P(data|model)","Numerator, P(data|model)*P(model)","Posterior, P(model|data)")
+
+library(kableExtra)
+
+kable(df2, format="html", escape=FALSE) %>%
+  kable_styling(font_size = 20, full_width = TRUE) %>%
+  column_spec(column = 3, background = "yellow", bold=TRUE)
+
+sum(posterior)
+
+barplot(prior2, main="Prior")
+barplot(likelihood2, main="Likelihood")
+barplot(posterior2, main="Posterior")
+
+```
+
+
+
+### And what if n=200, k=40?
+
+```{r}
+p3 <- round(seq(from = 0.1, to = 0.9, by = 0.1), digits=1)
+prior3 <- round(c(rep(0.06,4),0.52, rep(0.06,4)), digits=2)
+
+likelihood3 <- round(dbinom(40, size=200, prob = p), digits=4)
+
+numerator3   <- round(prior3 * likelihood3,digits=4)
+denominator3 <- round(sum(numerator3),digits=4)
+denominator3
+posterior3   <- round(numerator3 / denominator3,digits=4)
+
+library(dplyr)
+df3 <- as.data.frame(rbind(p3,prior3,likelihood3,numerator3,posterior3))
+names(df3) <- NULL
+
+rownames(df3) <- c("Model (p)","Prior, P(model)","Likelihood, P(data|model)","Numerator, P(data|model)*P(model)","Posterior, P(model|data)")
+
+library(kableExtra)
+
+kable(df3, format="html", escape=FALSE) %>%
+  kable_styling(font_size = 20, full_width = TRUE) %>%
+  column_spec(column = 3, background = "yellow", bold=TRUE)
+
+sum(posterior)
+
+barplot(prior3, main="Prior")
+barplot(likelihood3, main="Likelihood")
+barplot(posterior3, main="Posterior")
+
+```
+
+---
+
+---
+
+## <u><b>3. Frequentist vs Bayesian Inference</b></u>
+
+> <span style="font-weight: bold; font-size: 20px;">The example of M&Ms:</span><br>
+<br>
+<span style="font-style: italic; font-size: 20px;">
+  We have a population of M&Ms and the % of yellow M&Ms is either 10% or 20% (assume basically 5 colors)<br>
+  Question:<br>
+  Find whether the true % of yellow M&Ms is 10%
+</span>
+
+### <u><b>3.1 Frequentist Inference:</b></u>
+### <b>H<sub>0</sub>: 10% yellow M&Ms.</b>
+### <b>H<sub>A</sub>: >10% yellow M&Ms.</b>
+### <b>alpha=0.05</b>
+### Then with sample RBG<b><u>Y</u></b>O, got obs data: k=1, n=5
+
+$$
+P(K>=1 | n=5, p=0.1) = 1-P(k=0 | n=5, p=0.1) = 1 - 0.9^5 = ~0.41
+$$
+
+### So p>0.05, accept H<sub>0</sub>, which means no significant evidences reject % of yellow = 10%.
+
+### <u><b>3.2 Bayesian Inference:</b></u>
+### <b>H<sub>1</sub>: 10% yellow M&Ms
+### <b>H<sub>2</sub>: 20% yellow M&Ms _(can test both %s instead of null vs alternative)_
+### <b>prior: P(H<sub>1</sub>) = 0.5 = P(H<sub>2</sub>) _(since no believe that one prob is greater than the other)_
+### Then with sample RBG<b><u>Y</u></b>O, got obs data: k=1, n=5
+### <u>Likelyhood</u>:
+
+$$
+P(k=1 | H_1) = \binom{5}{1} \, 0.1^1 \, (1-0.1)^{5-1} = 0.33
+$$
+$$
+P(k=1 | H_2) = \binom{5}{1} \, 0.2^1 \, (1-0.2)^{5-1} = ~0.41
+$$
+
+
+### <u>Posterior</u>
+
+$$
+P(H_1 | k=1) = \frac{P(H_1)*P(k=1|H_1)}{P(k=1)} = \frac{0.5*0.33}{0.5*0.33+0.5*0.41} = ~0.45
+$$
+
+### And since only 2 situation (10% vs 20%), so the P(H<sub>2</sub> | k=1) = 1 - 0.45 = 0.55
+### Although 0.55 vs 0.45 is not a strong choice to pick, if we have to, we can choose H<sub>2</sub> as conclusion. _(Note that it's different conclusion than Frequentist inference)_
+
+### Then a comparison of Bayesian inference vs Frequentist's, with different obs. data is as below:
+
+```{r}
+obs_data <- c("n=5,  k=1",
+              "n=10, k=2",
+              "n=15, k=3",
+              "n=20, k=4"
+              )
+freq_p <- c(0.41, 0.26, 0.18, 0.13)
+bay_p10 <- c(0.45, 0.39, 0.34, 0.29)
+bay_p20 <- c(0.55, 0.61, 0.66, 0.71)
+
+library(dplyr)
+tb_comp <- as.data.frame(cbind(obs_data,freq_p,bay_p10,bay_p20))
+
+names(tb_comp) <- c("Obs.Data", "Freq P(k or more | 10% yellow)", "Bayesian P(10% yellow | n,k)","Bayesian P(20% yellow | n,k)")
+
+library(kableExtra)
+
+kable(tb_comp, format="html", escape=FALSE) %>%
+  kable_styling(font_size = 20, full_width = TRUE) %>%
+  column_spec(column = 4, background = "yellow", bold=TRUE)
+```
+### Frequentist inference is sensitive to the hypothesis, while Bayesian is not.
+
+```{r}
+# R code: Bayesian one-arm sample size by predictive probability (assurance)
+p0 <- 0.56    # historical / null rate
+p1 <- 0.66    # assumed true rate for power/assurance calc
+a  <- 1       # Beta(a,b) prior
+b  <- 1
+gamma <- 0.95 # posterior threshold P(p>p0) > gamma for "success"
+psi   <- 0.80 # desired predictive probability (assurance)
+maxn  <- 300  # search upper limit for n
+
+posterior_prob_gt_p0 <- function(x, n, a, b, p0) {
+  # 1 - CDF_Beta(p0; a+x, b+n-x)
+  1 - pbeta(p0, a + x, b + n - x)
+}
+
+success_prob <- function(n, p1, a, b, p0, gamma) {
+  xs <- 0:n
+  probs <- dbinom(xs, size = n, prob = p1)
+  post_probs <- sapply(xs, posterior_prob_gt_p0, n = n, a = a, b = b, p0 = p0)
+  sum(probs[ post_probs > gamma ])
+}
+
+# search minimal n
+found <- FALSE
+for (n in 1:maxn) {
+  sp <- success_prob(n, p1, a, b, p0, gamma)
+  if (sp >= psi) {
+    cat("Minimal n =", n, ", predictive success probability =", round(sp,4), "\n")
+    found <- TRUE
+    break
+  }
+}
+if (!found) cat("No n <= ", maxn, " achieves the target. Increase maxn or change parameters.\n")
+
+```
